@@ -1,16 +1,25 @@
 import os
 from dotenv import load_dotenv, find_dotenv
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.output_parsers import StrOutputParser
+
+# get keys
 env = load_dotenv(find_dotenv())
 openai = os.environ["OPENAI_API_KEY"]
 
-from langchain_openai import ChatOpenAI
-
+# connect to ChatGPT
 chatbot = ChatOpenAI(model="gpt-3.5-turbo")
 
-from langchain_core.messages import HumanMessage
-
+# set up message
+temp = "Translate the following from English into French (Canada)"
 m = input("Enter message: ")
-messages = [HumanMessage(content=m)]
+messages = [SystemMessage(content=temp), HumanMessage(content=m)]
 
-response = chatbot.invoke(messages)
-print(response.content)
+# set up parser
+parser = StrOutputParser()
+
+# chain prompt
+chain = chatbot | parser
+response = chain.invoke(messages)
+print(response)

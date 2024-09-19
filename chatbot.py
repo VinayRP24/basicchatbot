@@ -4,8 +4,11 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableLambda, RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.messages import HumanMessage
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
+from langchain_community.tools.tavily_search import TavilySearchResults
+from langgraph.prebuilt import create_react_agent
 
 # get keys
 env = load_dotenv(find_dotenv())
@@ -39,26 +42,31 @@ vector_store = Chroma.from_documents(documents, embedding=OpenAIEmbeddings())
 # retriever
 retriever = vector_store.as_retriever(search_type="similarity", search_kwargs={"k":1}) # best result
 
+# set up search
+search = TavilySearchResults(max_results=1)
+tools = [search]
+agent = create_react_agent(chatbot, tools)
+
 # set up 
 l = input("Choose language: ")
 question = """
 Answer this question using the provided context.
 Additionaly translate the answer from English into """ + l + """
-Tell me more about {name}
+{question}
 
 Context: {context}
 """
 prompt = ChatPromptTemplate.from_messages([("system", question)])
 
 # set up message
-
-m = input("Enter name: ")
+q = input("Enter question: ")
 
 # set up parser
 parser = StrOutputParser()
 
 # chain prompt
-chain = {"context": retriever, 
-    "name": RunnablePassthrough()} | prompt | chatbot | parser
-response = chain.invoke(m)
+chain = {"context": retriever, "question": RunnablePassthrough()} | prompt | chatbot | parser  # for custom documents
+#chain = prompt | chatbot | parser
+#response = agent.invoke({"messages": HumanMessage(content=q)})
+response = chain.invoke(q)
 print(response)

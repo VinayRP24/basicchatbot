@@ -1,14 +1,17 @@
-import os
+import os, uvicorn
 from dotenv import load_dotenv, find_dotenv
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnableLambda, RunnablePassthrough
+from langchain_core.runnables import RunnableLambda, RunnablePassthrough, RunnableParallel
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
 from langchain_community.tools.tavily_search import TavilySearchResults
 from langgraph.prebuilt import create_react_agent
+from langserve import add_routes
+from fastapi import FastAPI
+
 
 # get keys
 env = load_dotenv(find_dotenv())
@@ -48,25 +51,35 @@ tools = [search]
 agent = create_react_agent(chatbot, tools)
 
 # set up 
-l = input("Choose language: ")
-question = """
+#l = input("Choose language: ")
+message = """
 Answer this question using the provided context.
-Additionaly translate the answer from English into """ + l + """
+Additionaly translate the answer from English into {language}.
+
 {question}
 
 Context: {context}
 """
-prompt = ChatPromptTemplate.from_messages([("system", question)])
 
+prompt = ChatPromptTemplate.from_messages([("system", message),])
 # set up message
-q = input("Enter question: ")
+#q = input("Enter question: ")
 
 # set up parser
 parser = StrOutputParser()
 
 # chain prompt
-chain = {"context": retriever, "question": RunnablePassthrough()} | prompt | chatbot | parser  # for custom documents
+chain = {"context": retriever,"language": RunnablePassthrough(), "question": RunnablePassthrough()} | prompt | chatbot | parser  # for custom documents
 #chain = prompt | chatbot | parser
 #response = agent.invoke({"messages": HumanMessage(content=q)})
-response = chain.invoke(q)
-print(response)
+
+# output
+#response = chain.invoke(q)
+#print(response)
+
+# frontend
+app = FastAPI(title="basicchatbot", version="1.0", description="This is a basic chatbot")
+add_routes(app, chain, path="/z")
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="localhost", port=8000)

@@ -6,6 +6,8 @@ from langchain_core.runnables import RunnableLambda, RunnablePassthrough, Runnab
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage
 from langchain_core.documents import Document
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain.chains.retrieval import create_retrieval_chain
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import TextLoader
 from langgraph.prebuilt import create_react_agent
@@ -34,18 +36,14 @@ retriever = vector_store.as_retriever()
 parser = StrOutputParser()
 
 # chain prompt
-prompt  = ChatPromptTemplate(input_variables=['context', 'question'], metadata={'lc_hub_owner': 'rlm', 'lc_hub_repo': 'rag-prompt', 'lc_hub_commit_hash': '50442af133e61576e74536c6556cefe1fac147cad032f4377b60c436e6cdcb6e'}, messages=[HumanMessagePromptTemplate(prompt=PromptTemplate(input_variables=['context', 'question'], template="You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.\nQuestion: {question} \nContext: {context} \nAnswer:"))])
+template="You are an assistant for question-answering tasks. Use the following pieces of retrieved context to answer the question. If you don't know the answer, just say that you don't know. Use three sentences maximum and keep the answer concise.\n\nContext: {context}"
+prompt = ChatPromptTemplate.from_messages([("system", template),("human", "{input}")])
 
-def format_docs(docs):
-    return "\n\n".join(doc.page_content for doc in docs)
+c = create_stuff_documents_chain(chatbot, prompt)
 
-rag_chain = (
-    {"context": retriever | format_docs, "question": RunnablePassthrough()}
-    | prompt
-    | chatbot
-    | parser
-)
+chain = create_retrieval_chain(retriever, c)
+rag_chain = chain | parser
 
 q = input("Ask a question: ")
-response = rag_chain.invoke(q)
-print(response)
+response = chain.invoke({"input": q})
+print(response["answer"])
